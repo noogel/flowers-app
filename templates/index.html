@@ -6,11 +6,23 @@
     <style>
         :root {
             --primary-color: #4CAF50;
+            --primary-light: #81C784;
+            --primary-dark: #388E3C;
             --secondary-color: #FF9800;
             --background: #F5F5F5;
             --text-dark: #2E7D32;
             --text-light: #757575;
             --border-color: #C8E6C9;
+            --menu-bg: #ffffff;
+            --menu-hover: #F5F5F5;
+            --menu-active: #E8F5E9;
+            --menu-border: #E0E0E0;
+            --menu-text: #333333;
+            --menu-text-light: #666666;
+            --hover-bg: #F1F8E9;
+            --active-bg: #E8F5E9;
+            --submenu-border: #B2DFDB;
+            --menu-shadow: rgba(76, 175, 80, 0.15);
         }
 
         body {
@@ -65,30 +77,98 @@
         }
 
         .sidebar {
-            border-right: 2px solid var(--border-color);
+            border-right: 2px solid var(--menu-border);
             padding-right: 1rem;
             position: sticky;
             top: 20px;
             height: fit-content;
+            background: var(--menu-bg);
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .nav-item {
-            padding: 8px 12px;
+            padding: 10px 16px;
             margin: 4px 0;
             border-radius: 6px;
             cursor: pointer;
-            transition: all 0.2s;
-            color: var(--text-dark);
+            transition: background-color 0.2s ease;
+            color: var(--menu-text);
+            position: relative;
+            font-size: 0.95rem;
+            border: 1px solid transparent;
         }
 
         .nav-item:hover {
-            background: var(--border-color);
-            transform: translateX(4px);
+            background: var(--menu-hover);
+            color: var(--primary-color);
         }
 
         .nav-item.active {
-            background: var(--primary-color);
-            color: white;
+            background: var(--menu-active);
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .nav-item.has-submenu::after {
+            content: '▼';
+            position: absolute;
+            right: 16px;
+            font-size: 0.7em;
+            transition: transform 0.2s ease;
+            color: var(--menu-text-light);
+        }
+
+        .nav-item.has-submenu.expanded::after {
+            transform: rotate(180deg);
+        }
+
+        .submenu {
+            margin-left: 16px;
+            display: none;
+            border-left: 2px solid var(--menu-border);
+            padding-left: 8px;
+        }
+
+        .submenu.show {
+            display: block;
+        }
+
+        .submenu .nav-item {
+            padding: 8px 16px;
+            margin: 2px 0;
+            font-size: 0.9em;
+            color: var(--menu-text-light);
+        }
+
+        .submenu .nav-item:hover {
+            color: var(--primary-color);
+            background: var(--menu-hover);
+        }
+
+        .submenu .nav-item.active {
+            color: var(--primary-color);
+            background: var(--menu-active);
+            border-color: var(--primary-color);
+        }
+
+        /* 滚动条样式 */
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: var(--menu-bg);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--menu-border);
+            border-radius: 2px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: var(--menu-text-light);
         }
 
         .content {
@@ -398,19 +478,48 @@
 
         function renderNavigation(data) {
             const nav = document.getElementById('nav');
-            nav.innerHTML = Object.keys(data).map(key => `
-                <div class="nav-item" data-section="${normalizeId(key)}">${key}</div>
-            `).join('');
+            nav.innerHTML = Object.entries(data).map(([key, value]) => {
+                const hasSubmenu = typeof value === 'object' && value !== null && !Array.isArray(value);
+                const submenuContent = hasSubmenu ? `
+                    <div class="submenu">
+                        ${Object.keys(value).map(subKey => `
+                            <div class="nav-item" data-section="${normalizeId(key)}-${normalizeId(subKey)}">${subKey}</div>
+                        `).join('')}
+                    </div>
+                ` : '';
+                
+                return `
+                    <div class="nav-item ${hasSubmenu ? 'has-submenu' : ''}" data-section="${normalizeId(key)}">
+                        ${key}
+                        ${submenuContent}
+                    </div>
+                `;
+            }).join('');
         }
 
         function renderContent(data) {
             const content = document.getElementById('content');
-            content.innerHTML = Object.entries(data).map(([key, value]) => `
-                <div class="category" id="${normalizeId(key)}">
-                    <h2 class="category-title">${key}</h2>
-                    ${renderValue(value)}
-                </div>
-            `).join('');
+            content.innerHTML = Object.entries(data).map(([key, value]) => {
+                if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                    return `
+                        <div class="category" id="${normalizeId(key)}">
+                            <h2 class="category-title">${key}</h2>
+                            ${Object.entries(value).map(([subKey, subValue]) => `
+                                <div class="subcategory" id="${normalizeId(key)}-${normalizeId(subKey)}">
+                                    <h3 class="subcategory-title">${subKey}</h3>
+                                    ${renderValue(subValue)}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="category" id="${normalizeId(key)}">
+                        <h2 class="category-title">${key}</h2>
+                        ${renderValue(value)}
+                    </div>
+                `;
+            }).join('');
         }
 
         function initNavigation() {
@@ -419,11 +528,24 @@
             
             // 点击导航处理
             navItems.forEach(item => {
-                item.addEventListener('click', function() {
+                item.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    
+                    // 处理二级菜单展开/收起
+                    if (this.classList.contains('has-submenu')) {
+                        this.classList.toggle('expanded');
+                        const submenu = this.querySelector('.submenu');
+                        if (submenu) {
+                            submenu.classList.toggle('show');
+                        }
+                        return;
+                    }
+                    
                     // 移除所有激活状态
                     navItems.forEach(n => n.classList.remove('active'));
                     // 设置当前激活状态
                     this.classList.add('active');
+                    
                     // 获取目标元素
                     const target = document.getElementById(this.dataset.section);
                     if (target) {
