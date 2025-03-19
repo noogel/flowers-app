@@ -4,11 +4,13 @@ services:
   flowers-app:
     build: .
     ports:
-      - "5000:5000"
+      - "5001:5000"
     volumes:
       - ./flowers-app:/app/flowers-app
     environment:
       - GIT_REPO_PATH=/app/flowers-app
+      - GIT_REPO_URL=${GIT_REPO_URL:-https://github.com/noogel/flowers-app.git}
+      - GIT_BRANCH=${GIT_BRANCH:-main}
       - AUTO_UPDATE=true
       - UPDATE_INTERVAL=3600
     restart: unless-stopped
