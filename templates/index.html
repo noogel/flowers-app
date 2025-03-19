@@ -289,10 +289,32 @@
                 select.value = currentPlant;
             }
             
-            select.addEventListener('change', function() {
+            select.addEventListener('change', async function() {
                 const selectedValue = this.value;
                 if (selectedValue) {
-                    window.location.href = `?name=${encodeURIComponent(selectedValue)}`;
+                    // 更新 URL，但不刷新页面
+                    const newUrl = `?name=${encodeURIComponent(selectedValue)}`;
+                    window.history.pushState({}, '', newUrl);
+                    // 动态加载数据
+                    await loadData();
+                } else {
+                    // 如果选择空值，显示欢迎页面
+                    const content = document.getElementById('content');
+                    content.innerHTML = `
+                        <div class="welcome-section">
+                            <h2>欢迎使用植物数据展示系统</h2>
+                            <p>请从上方下拉菜单选择要查看的植物信息</p>
+                            <div class="feature-list">
+                                <h3>系统功能：</h3>
+                                <ul>
+                                    <li>支持多种植物数据展示</li>
+                                    <li>详细的基础信息展示</li>
+                                    <li>分类导航功能</li>
+                                    <li>响应式设计</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
                 }
             });
         }
@@ -312,23 +334,6 @@
         function buildDataUrl() {
             const plantName = getUrlParam(CONFIG.URL_PARAM);
             if (!plantName) {
-                // 如果没有选择花卉，显示欢迎信息
-                const content = document.getElementById('content');
-                content.innerHTML = `
-                    <div class="welcome-section">
-                        <h2>欢迎使用植物数据展示系统</h2>
-                        <p>请从上方下拉菜单选择要查看的植物信息</p>
-                        <div class="feature-list">
-                            <h3>系统功能：</h3>
-                            <ul>
-                                <li>支持多种植物数据展示</li>
-                                <li>详细的基础信息展示</li>
-                                <li>分类导航功能</li>
-                                <li>响应式设计</li>
-                            </ul>
-                        </div>
-                    </div>
-                `;
                 return null;
             }
 
@@ -347,7 +352,23 @@
             try {
                 const dataUrl = buildDataUrl();
                 if (!dataUrl) {
-                    // 如果没有数据URL，说明是欢迎页面，不需要加载数据
+                    // 如果没有数据URL，显示欢迎信息
+                    const content = document.getElementById('content');
+                    content.innerHTML = `
+                        <div class="welcome-section">
+                            <h2>欢迎使用植物数据展示系统</h2>
+                            <p>请从上方下拉菜单选择要查看的植物信息</p>
+                            <div class="feature-list">
+                                <h3>系统功能：</h3>
+                                <ul>
+                                    <li>支持多种植物数据展示</li>
+                                    <li>详细的基础信息展示</li>
+                                    <li>分类导航功能</li>
+                                    <li>响应式设计</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
                     return;
                 }
 
@@ -502,6 +523,11 @@
 
             content.innerHTML = errorMessage;
         }
+
+        // 添加浏览器前进后退支持
+        window.addEventListener('popstate', function() {
+            loadData();
+        });
 
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
