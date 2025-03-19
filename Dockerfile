@@ -17,12 +17,29 @@ RUN apt-get update && apt-get install -y \
 # 复制项目文件
 COPY requirements.txt .
 COPY app.py .
-COPY start.sh .
 COPY templates/ templates/
 COPY static/ static/
 
 # 安装 Python 依赖
 RUN pip install --no-cache-dir -r requirements.txt
+
+# 创建启动脚本
+RUN echo '#!/bin/bash\n\
+# 首次启动时检查更新\n\
+echo "Performing initial update check..."\n\
+cd $GIT_REPO_PATH\n\
+git pull\n\
+\n\
+# 启动后台更新检查\n\
+if [ "$AUTO_UPDATE" = "true" ]; then\n\
+    echo "Starting background update checker..."\n\
+    cd $GIT_REPO_PATH\n\
+    git pull\n\
+fi\n\
+\n\
+# 启动主应用\n\
+echo "Starting the application..."\n\
+exec python app.py' > /app/start.sh && chmod +x /app/start.sh
 
 # 暴露端口
 EXPOSE 5000
