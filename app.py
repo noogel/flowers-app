@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_from_directory
 import json
 import os
 from pathlib import Path
@@ -12,7 +12,10 @@ def load_flower_data():
     for file in data_dir.glob('*.json'):
         with open(file, 'r', encoding='utf-8') as f:
             data = json.load(f)
+            # 从文件名获取ID（去掉前缀和扩展名）
+            file_id = file.stem.replace('data_', '')
             flowers.append({
+                'id': file_id,
                 'name': data['基础信息']['名称']['中文名'],
                 'data': data
             })
@@ -21,14 +24,22 @@ def load_flower_data():
 @app.route('/')
 def index():
     """渲染主页"""
-    flowers = load_flower_data()
-    return render_template('index.html.bak', flowers=flowers)
+    return render_template('index.html')
 
-@app.route('/api/flowers')
-def get_flowers():
-    """获取所有花卉数据"""
+@app.route('/api/plants')
+def get_plants():
+    """获取所有花卉列表"""
     flowers = load_flower_data()
-    return jsonify(flowers)
+    # 只返回必要的列表信息
+    return jsonify([{
+        'id': flower['id'],
+        'name': flower['name']
+    } for flower in flowers])
+
+@app.route('/resources/<path:filename>')
+def serve_resource(filename):
+    """提供静态资源文件"""
+    return send_from_directory('static/data', filename)
 
 @app.route('/api/flowers/<flower_name>')
 def get_flower(flower_name):

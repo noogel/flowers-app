@@ -21,6 +21,39 @@
             margin: 0 auto;
         }
 
+        /* 新增选择器样式 */
+        .plant-selector {
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .plant-selector select {
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+            color: var(--text-dark);
+            background: white;
+            cursor: pointer;
+            min-width: 200px;
+        }
+
+        .plant-selector select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .plant-selector label {
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+
         .container {
             display: grid;
             grid-template-columns: 240px 1fr;
@@ -151,6 +184,14 @@
     </style>
 </head>
 <body>
+    <!-- 新增选择器 -->
+    <div class="plant-selector">
+        <label for="plantSelect">选择花卉：</label>
+        <select id="plantSelect">
+            <option value="">加载中...</option>
+        </select>
+    </div>
+
     <div class="container">
         <div class="sidebar" id="nav"></div>
         <div class="content" id="content"></div>
@@ -162,8 +203,41 @@
             DEFAULT_FILE: 'data.json',      // 默认数据文件
             FILE_PREFIX: 'data_',           // 文件前缀
             URL_PARAM: 'name',              // URL参数名
-            CACHE_BUSTER: true              // 是否添加缓存参数
+            CACHE_BUSTER: true,             // 是否添加缓存参数
+            API_ENDPOINT: '/api/plants'     // 新增：API端点
         };
+
+        // 获取花卉列表
+        async function loadPlantList() {
+            try {
+                const response = await fetch(CONFIG.API_ENDPOINT);
+                if (!response.ok) {
+                    throw new Error('获取花卉列表失败');
+                }
+                const plants = await response.json();
+                const select = document.getElementById('plantSelect');
+                select.innerHTML = `
+                    <option value="">请选择花卉</option>
+                    ${plants.map(plant => `
+                        <option value="${plant.id}">${plant.name}</option>
+                    `).join('')}
+                `;
+            } catch (error) {
+                console.error('加载花卉列表失败:', error);
+                document.getElementById('plantSelect').innerHTML = '<option value="">加载失败</option>';
+            }
+        }
+
+        // 初始化选择器事件
+        function initPlantSelector() {
+            const select = document.getElementById('plantSelect');
+            select.addEventListener('change', function() {
+                const selectedValue = this.value;
+                if (selectedValue) {
+                    window.location.href = `?name=${encodeURIComponent(selectedValue)}`;
+                }
+            });
+        }
 
         // 获取URL参数
         function getUrlParam(name) {
@@ -363,7 +437,12 @@
             content.innerHTML = errorMessage;
         }
 
-        loadData();
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPlantList();
+            initPlantSelector();
+            loadData();
+        });
     </script>
 </body>
 </html>
