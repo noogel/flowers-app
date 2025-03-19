@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  flowers-app:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./flowers-app:/app/flowers-app
+    environment:
+      - GIT_REPO_PATH=/app/flowers-app
+      - AUTO_UPDATE=true
+      - UPDATE_INTERVAL=3600
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3" 
