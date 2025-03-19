@@ -181,6 +181,56 @@
             width: 100%;
             margin: 8px 0;
         }
+
+        .welcome-section {
+            text-align: center;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .welcome-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .welcome-section p {
+            color: var(--text-light);
+            margin-bottom: 2rem;
+        }
+
+        .feature-list {
+            text-align: left;
+            max-width: 600px;
+            margin: 0 auto;
+            background: #F8F9FA;
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+
+        .feature-list h3 {
+            color: var(--text-dark);
+            margin-bottom: 1rem;
+        }
+
+        .feature-list ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 0.5rem 0;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+        }
+
+        .feature-list li::before {
+            content: '✓';
+            color: var(--primary-color);
+            margin-right: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -216,10 +266,12 @@
                 }
                 const plants = await response.json();
                 const select = document.getElementById('plantSelect');
+                const currentPlant = getUrlParam('name');
+                
                 select.innerHTML = `
                     <option value="">请选择花卉</option>
                     ${plants.map(plant => `
-                        <option value="${plant.id}">${plant.name}</option>
+                        <option value="${plant.id}" ${plant.id === currentPlant ? 'selected' : ''}>${plant.name}</option>
                     `).join('')}
                 `;
             } catch (error) {
@@ -231,6 +283,12 @@
         // 初始化选择器事件
         function initPlantSelector() {
             const select = document.getElementById('plantSelect');
+            // 设置当前选中的值
+            const currentPlant = getUrlParam('name');
+            if (currentPlant) {
+                select.value = currentPlant;
+            }
+            
             select.addEventListener('change', function() {
                 const selectedValue = this.value;
                 if (selectedValue) {
@@ -253,7 +311,26 @@
         // 构建请求URL
         function buildDataUrl() {
             const plantName = getUrlParam(CONFIG.URL_PARAM);
-            if (!plantName) return CONFIG.DEFAULT_FILE;
+            if (!plantName) {
+                // 如果没有选择花卉，显示欢迎信息
+                const content = document.getElementById('content');
+                content.innerHTML = `
+                    <div class="welcome-section">
+                        <h2>欢迎使用植物数据展示系统</h2>
+                        <p>请从上方下拉菜单选择要查看的植物信息</p>
+                        <div class="feature-list">
+                            <h3>系统功能：</h3>
+                            <ul>
+                                <li>支持多种植物数据展示</li>
+                                <li>详细的基础信息展示</li>
+                                <li>分类导航功能</li>
+                                <li>响应式设计</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                return null;
+            }
 
             const safeName = sanitizeFilename(plantName);
             let url = `/resources/${CONFIG.FILE_PREFIX}${safeName}.json`;
@@ -269,6 +346,11 @@
         async function loadData() {
             try {
                 const dataUrl = buildDataUrl();
+                if (!dataUrl) {
+                    // 如果没有数据URL，说明是欢迎页面，不需要加载数据
+                    return;
+                }
+
                 const response = await fetch(dataUrl);
                 
                 if (!response.ok) {
@@ -391,26 +473,10 @@
             if (Array.isArray(value)) {
                 return value.map(v => {
                     if (typeof v === 'object') return '';
-                    return `<span class="array-item">${v}</span>`;
-                }).join('');
+                    return `<span class="array-item">${v}</span>`
+                });
             }
-            return value;
-        }
-
-        // 添加交互
-        // 增强的交互绑定
-        function addInteractivity() {
-            // 保持原有交互逻辑，增加对复杂结构的支持
-            document.querySelectorAll('.collapsible').forEach(item => {
-                if (!item._listenerAdded) {
-                    item.addEventListener('click', function() {
-                        this.classList.toggle('active');
-                        const content = this.nextElementSibling;
-                        content.style.display = content.style.display === 'none' ? 'block' : 'none';
-                    });
-                    item._listenerAdded = true;
-                }
-            });
+            return `<span class="value">${value}</span>`;
         }
 
         // 错误处理增强

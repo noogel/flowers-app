@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 
 def load_flower_data():
     """加载所有花卉数据"""
@@ -39,7 +39,11 @@ def get_plants():
 @app.route('/resources/<path:filename>')
 def serve_resource(filename):
     """提供静态资源文件"""
-    return send_from_directory('static/data', filename)
+    try:
+        return send_from_directory('static/data', filename)
+    except Exception as e:
+        app.logger.error(f"Error serving file {filename}: {str(e)}")
+        return jsonify({'error': '文件访问失败'}), 403
 
 @app.route('/api/flowers/<flower_name>')
 def get_flower(flower_name):
