@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>植物数据可视化展示</title>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --secondary-color: #FF9800;
+            --background: #F5F5F5;
+            --text-dark: #2E7D32;
+            --text-light: #757575;
+            --border-color: #C8E6C9;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui;
+            background: var(--background);
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+
+        .sidebar {
+            border-right: 2px solid var(--border-color);
+            padding-right: 1rem;
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }
+
+        .nav-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-dark);
+        }
+
+        .nav-item:hover {
+            background: var(--border-color);
+            transform: translateX(4px);
+        }
+
+        .nav-item.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .content {
+            padding-left: 1rem;
+            position: relative;
+        }
+
+        .category {
+            margin-bottom: 2rem;
+            scroll-margin-top: 80px;
+        }
+
+        .category-title {
+            color: var(--primary-color);
+            border-bottom: 2px solid;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+        }
+
+        .entry {
+            margin-left: 1rem;
+            padding: 0.5rem;
+            border-left: 2px solid var(--border-color);
+            transition: all 0.2s;
+        }
+
+        .entry:hover {
+            border-left-color: var(--secondary-color);
+            background: #FFF8E1;
+        }
+
+        .key {
+            color: var(--text-dark);
+            font-weight: 500;
+            margin-right: 0.5rem;
+        }
+
+        .value {
+            color: var(--text-light);
+        }
+
+        .array-item {
+            background: #F1F8E9;
+            padding: 4px 8px;
+            margin: 4px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        /* 折叠交互 */
+        .collapsible {
+            cursor: pointer;
+            position: relative;
+            padding-left: 20px;
+        }
+
+        .collapsible::before {
+            content: '▶';
+            position: absolute;
+            left: 0;
+            transition: transform 0.2s;
+            color: var(--secondary-color);
+        }
+
+        .collapsible.active::before {
+            transform: rotate(90deg);
+        }
+        /* 新增修复样式 */
+        .nested {
+            margin-left: 20px;
+            border-left: 1px solid #E0E0E0;
+            padding-left: 15px;
+        }
+
+        .object-entry {
+            margin: 8px 0;
+        }
+
+        .array-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .complex-array-item {
+            background: #FFF3E0;
+            padding: 12px;
+            border-radius: 6px;
+            width: 100%;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar" id="nav"></div>
+        <div class="content" id="content"></div>
+    </div>
+
+    <script>
+        // 配置参数
+        const CONFIG = {
+            DEFAULT_FILE: 'data.json',      // 默认数据文件
+            FILE_PREFIX: 'data_',           // 文件前缀
+            URL_PARAM: 'name',              // URL参数名
+            CACHE_BUSTER: true              // 是否添加缓存参数
+        };
+
+        // 获取URL参数
+        function getUrlParam(name) {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(name);
+        }
+
+        // 安全文件名处理
+        function sanitizeFilename(name) {
+            return name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '');
+        }
+
+        // 构建请求URL
+        function buildDataUrl() {
+            const plantName = getUrlParam(CONFIG.URL_PARAM);
+            if (!plantName) return CONFIG.DEFAULT_FILE;
+
+            const safeName = sanitizeFilename(plantName);
+            let url = `/resources/${CONFIG.FILE_PREFIX}${safeName}.json`;
+            
+            if (CONFIG.CACHE_BUSTER) {
+                url += `?t=${Date.now()}`;
+            }
+            
+            return url;
+        }
+
+        // 增强版数据加载
+        async function loadData() {
+            try {
+                const dataUrl = buildDataUrl();
+                const response = await fetch(dataUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`文件加载失败: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                renderNavigation(data);
+                renderContent(data);
+                initNavigation();
+                
+                // 更新页面标题
+                document.title = `${getUrlParam('name') || '植物'}数据展示`;
+                
+            } catch (error) {
+                showError(error);
+            }
+        }
+
+        // ID标准化函数
+        function normalizeId(str) {
+            return str.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, ''); // 保留中文、字母和数字
+        }
+
+        function renderNavigation(data) {
+            const nav = document.getElementById('nav');
+            nav.innerHTML = Object.keys(data).map(key => `
+                <div class="nav-item" data-section="${normalizeId(key)}">${key}</div>
+            `).join('');
+        }
+
+        function renderContent(data) {
+            const content = document.getElementById('content');
+            content.innerHTML = Object.entries(data).map(([key, value]) => `
+                <div class="category" id="${normalizeId(key)}">
+                    <h2 class="category-title">${key}</h2>
+                    ${renderValue(value)}
+                </div>
+            `).join('');
+        }
+
+        function initNavigation() {
+            const navItems = document.querySelectorAll('.nav-item');
+            const sections = document.querySelectorAll('.category');
+            
+            // 点击导航处理
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    // 移除所有激活状态
+                    navItems.forEach(n => n.classList.remove('active'));
+                    // 设置当前激活状态
+                    this.classList.add('active');
+                    // 获取目标元素
+                    const target = document.getElementById(this.dataset.section);
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+
+            // 滚动监听处理
+            const observer = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    const id = normalizeId(entry.target.id);
+                    const navItem = document.querySelector(`.nav-item[data-section="${id}"]`);
+                    if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                        navItems.forEach(n => n.classList.remove('active'));
+                        navItem?.classList.add('active');
+                    }
+                });
+            }, { 
+                threshold: [0, 0.5, 1],
+                rootMargin: '-100px 0px -50px 0px'
+            });
+
+            sections.forEach(section => observer.observe(section));
+        }
+
+        // 递归渲染值
+        function renderValue(value, level = 0) {
+            if (typeof value === 'object' && value !== null) {
+                const isArray = Array.isArray(value);
+                const entries = isArray ? value : Object.entries(value);
+                
+                return `
+                    <div class="object-entry">
+                        ${isArray ? '<div class="array-container">' : ''}
+                        ${entries.map((item, index) => {
+                            const [k, v] = isArray ? [index, item] : [item[0], item[1]];
+                            return `
+                                <div class="${isArray ? 'complex-array-item' : 'nested'}">
+                                    ${!isArray ? `<span class="key">${k}:</span>` : ''}
+                                    ${renderValue(v, level + 1)}
+                                </div>
+                            `;
+                        }).join(isArray ? '' : '<br>')}
+                        ${isArray ? '</div>' : ''}
+                    </div>
+                `;
+            }
+            
+            // 处理基本类型值
+            if (Array.isArray(value)) {
+                return `<div class="array-container">${
+                    value.map(item => `<span class="array-item">${item}</span>`).join('')
+                }</div>`;
+            }
+            
+            return `<span class="value">${value}</span>`;
+        }
+        // 格式化值
+        // 增强的格式化函数
+        function formatValue(value) {
+            if (typeof value === 'object') {
+                return '';
+            }
+            if (Array.isArray(value)) {
+                return value.map(v => {
+                    if (typeof v === 'object') return '';
+                    return `<span class="array-item">${v}</span>`;
+                }).join('');
+            }
+            return value;
+        }
+
+        // 添加交互
+        // 增强的交互绑定
+        function addInteractivity() {
+            // 保持原有交互逻辑，增加对复杂结构的支持
+            document.querySelectorAll('.collapsible').forEach(item => {
+                if (!item._listenerAdded) {
+                    item.addEventListener('click', function() {
+                        this.classList.toggle('active');
+                        const content = this.nextElementSibling;
+                        content.style.display = content.style.display === 'none' ? 'block' : 'none';
+                    });
+                    item._listenerAdded = true;
+                }
+            });
+        }
+
+        // 错误处理增强
+        function showError(error) {
+            const content = document.getElementById('content');
+            const plantName = getUrlParam('name');
+            
+            let errorMessage = `
+                <div class="error">
+                    <h3>⚠️ 数据加载失败</h3>
+                    <p>错误信息：${error.message}</p>
+                    <div class="troubleshooting">
+                        <p>尝试以下解决方案：</p>
+                        <ul>
+                            <li>检查URL参数是否正确（当前参数：${plantName || '无'}）</li>
+                            <li>确认文件 ${buildDataUrl()} 存在</li>
+                            <li>验证JSON格式是否正确</li>
+                            ${plantName ? `<li>尝试访问 <a href="?">默认数据</a></li>` : ''}
+                        </ul>
+                    </div>
+                </div>
+            `;
+
+            content.innerHTML = errorMessage;
+        }
+
+        loadData();
+    </script>
+</body>
+</html>

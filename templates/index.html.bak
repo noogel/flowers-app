@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>花卉信息查询系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">花卉信息查询系统</h1>
+        
+        <div class="max-w-2xl mx-auto">
+            <div class="mb-8">
+                <label for="flower-select" class="block text-sm font-medium text-gray-700 mb-2">
+                    选择花卉
+                </label>
+                <select
+                    id="flower-select"
+                    class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    onchange="loadFlowerData(this.value)"
+                >
+                    <option value="">请选择花卉...</option>
+                    {% for flower in flowers %}
+                    <option value="{{ flower.name }}">{{ flower.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="loading" class="hidden text-center py-4">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
+            </div>
+
+            <div id="error" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span class="block sm:inline" id="error-message"></span>
+            </div>
+
+            <div id="flower-info" class="hidden bg-white shadow-lg rounded-lg p-6">
+                <h2 id="flower-name" class="text-2xl font-semibold mb-4 text-gray-800"></h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="font-medium text-gray-700">学名</h3>
+                        <p id="scientific-name" class="text-gray-600"></p>
+                    </div>
+                    <div>
+                        <h3 class="font-medium text-gray-700">别名</h3>
+                        <p id="aliases" class="text-gray-600"></p>
+                    </div>
+                    <div>
+                        <h3 class="font-medium text-gray-700">科</h3>
+                        <p id="family" class="text-gray-600"></p>
+                    </div>
+                    <div>
+                        <h3 class="font-medium text-gray-700">属</h3>
+                        <p id="genus" class="text-gray-600"></p>
+                    </div>
+                    <div>
+                        <h3 class="font-medium text-gray-700">种</h3>
+                        <p id="species" class="text-gray-600"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadFlowerData(flowerName) {
+            if (!flowerName) {
+                document.getElementById('flower-info').classList.add('hidden');
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const flowerInfo = document.getElementById('flower-info');
+            const errorMessage = document.getElementById('error-message');
+
+            loading.classList.remove('hidden');
+            error.classList.add('hidden');
+            flowerInfo.classList.add('hidden');
+
+            try {
+                const response = await fetch(`/api/flowers/${encodeURIComponent(flowerName)}`);
+                if (!response.ok) {
+                    throw new Error('加载花卉数据失败');
+                }
+                const data = await response.json();
+
+                document.getElementById('flower-name').textContent = data.基础信息.名称.中文名;
+                document.getElementById('scientific-name').textContent = data.基础信息.名称.学名;
+                document.getElementById('aliases').textContent = data.基础信息.名称.别名.join('、');
+                document.getElementById('family').textContent = data.基础信息.分类.科;
+                document.getElementById('genus').textContent = data.基础信息.分类.属;
+                document.getElementById('species').textContent = data.基础信息.分类.种;
+
+                flowerInfo.classList.remove('hidden');
+            } catch (err) {
+                errorMessage.textContent = err.message;
+                error.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html> 
