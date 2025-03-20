@@ -1,16 +1,40 @@
-# 使用 Python 3.9 作为基础镜像
-FROM python:3.12.9-slim
+# 使用 Python 3.12 作为基础镜像
+FROM python:3.12-slim-bullseye
 
 # 设置工作目录
 WORKDIR /app
 
+# 设置构建参数
+ARG GIT_REPO_URL
+ARG GIT_BRANCH
+ARG GIT_REPO_PATH
+ARG AUTO_UPDATE
+ARG UPDATE_INTERVAL
+
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1 \
-    AUTO_UPDATE=true \
-    FLASK_RUN_HOST=0.0.0.0
+    AUTO_UPDATE=${AUTO_UPDATE:-true} \
+    FLASK_RUN_HOST=0.0.0.0 \
+    GIT_REPO_URL=${GIT_REPO_URL} \
+    GIT_BRANCH=${GIT_BRANCH:-main} \
+    GIT_REPO_PATH=${GIT_REPO_PATH:-/app/flowers-app} \
+    UPDATE_INTERVAL=${UPDATE_INTERVAL:-3600}
 
-# 配置pip使用阿里云镜像源
-RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+# 设置代理
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+ENV NO_PROXY=$NO_PROXY
+
+# 配置apt使用清华大学镜像源
+RUN rm -f /etc/apt/sources.list && \
+    echo "deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bullseye main" > /etc/apt/sources.list && \
+    echo "deb https://mirrors.tuna.tsinghua.edu.cn/debian-security bullseye-security main" >> /etc/apt/sources.list
+
+# 配置pip使用清华大学镜像源
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
@@ -19,13 +43,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制项目文件
-COPY requirements.txt .
-COPY app.py .
-COPY templates/ templates/
-COPY static/ static/
+COPY requirements.txt $GIT_REPO_PATH/
+COPY app.py $GIT_REPO_PATH/
+COPY templates/ $GIT_REPO_PATH/templates/
+COPY static/ $GIT_REPO_PATH/static/
 
 # 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r $GIT_REPO_PATH/requirements.txt
 
 # 创建启动脚本
 RUN echo '#!/bin/bash\n\
@@ -42,34 +66,50 @@ if [ -z "$GIT_REPO_URL" ]; then\n\
     exit 1\n\
 fi\n\
 \n\
-# 确保目录存在\n\
+# 确保目标目录存在\n\
 mkdir -p "$GIT_REPO_PATH"\n\
 \n\
-# 初始化或更新 Git 仓库\n\
-if [ ! -d "$GIT_REPO_PATH/.git" ]; then\n\
-    echo "Initializing Git repository at $GIT_REPO_PATH..."\n\
-    cd "$GIT_REPO_PATH"\n\
-    git init\n\
-    git remote add origin "$GIT_REPO_URL"\n\
-    git fetch origin\n\
-    git checkout -b "${GIT_BRANCH:-main}" --track "origin/${GIT_BRANCH:-main}"\n\
-else\n\
-    echo "Git repository found at $GIT_REPO_PATH"\n\
-    cd "$GIT_REPO_PATH"\n\
-    git fetch origin\n\
-    git reset --hard "origin/${GIT_BRANCH:-main}"\n\
-fi\n\
+# 尝试更新代码\n\
+update_code() {\n\
+    # 创建临时目录\n\
+    TEMP_DIR=$(mktemp -d)\n\
+    echo "Created temporary directory: $TEMP_DIR"\n\
+    \n\
+    # 克隆仓库到临时目录\n\
+    echo "Cloning Git repository to temporary directory..."\n\
+    cd "$TEMP_DIR"\n\
+    if git clone -b "${GIT_BRANCH:-main}" "$GIT_REPO_URL" .; then\n\
+        # 复制必要文件到目标目录\n\
+        echo "Copying necessary files to target directory..."\n\
+        # 复制 Python 文件\n\
+        cp -f app.py "$GIT_REPO_PATH/" 2>/dev/null || true\n\
+        cp -f requirements.txt "$GIT_REPO_PATH/" 2>/dev/null || true\n\
+        # 复制模板文件\n\
+        if [ -d "templates" ]; then\n\
+            cp -rf templates/* "$GIT_REPO_PATH/templates/" 2>/dev/null || true\n\
+        fi\n\
+        # 复制静态文件\n\
+        if [ -d "static" ]; then\n\
+            cp -rf static/* "$GIT_REPO_PATH/static/" 2>/dev/null || true\n\
+        fi\n\
+        echo "Code update successful"\n\
+    else\n\
+        echo "Warning: Failed to update code, using local files"\n\
+    fi\n\
+    \n\
+    # 清理临时目录\n\
+    cd /tmp\n\
+    rm -rf "$TEMP_DIR"\n\
+}\n\
+\n\
+# 首次更新代码\n\
+update_code\n\
 \n\
 # 启动后台更新检查\n\
 if [ "$AUTO_UPDATE" = "true" ]; then\n\
     echo "Starting background update checker..."\n\
     while true; do\n\
-        cd "$GIT_REPO_PATH"\n\
-        if git pull origin "${GIT_BRANCH:-main}"; then\n\
-            echo "Update check completed successfully"\n\
-        else\n\
-            echo "Warning: Update check failed, will retry later"\n\
-        fi\n\
+        update_code\n\
         sleep "${UPDATE_INTERVAL:-3600}"\n\
     done &\n\
 fi\n\
